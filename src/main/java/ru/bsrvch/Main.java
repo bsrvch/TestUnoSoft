@@ -1,12 +1,14 @@
 package ru.bsrvch;
 
+import java.io.FileWriter;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
 import java.util.*;
-import java.io.*;
-import java.util.stream.Collectors;
-public class Main {
 
+public class Main {
     public static void main(String[] args) {
+        long time = System.currentTimeMillis();
 
         InputStream inputStream = Main.class.getResourceAsStream("/lng.txt");
         Scanner scanner = new Scanner(inputStream);
@@ -17,59 +19,52 @@ public class Main {
         }
         List<Set<String>> groups = groupLines(uniqueLines);
         writeGroupsToFile(groups);
+        System.out.println(System.currentTimeMillis()-time);
     }
     private static List<Set<String>> groupLines(Set<String> lines) {
-        DSU uf = new DSU(lines.size());
-        Map<String, Integer> lineToIndex = new HashMap<>();
-        int index = 0;
+        List<Set<String>> groups = new ArrayList<>();
+        Map<String, Set<String>> columnValueToGroupMap = new HashMap<>();
 
-        List<String[]> parsedLines = new ArrayList<>();
-        for(String line : lines){
-            lineToIndex.put(line, index++);
-            String[] strs = line.replace("\"","").split(";");
-            for (int i = 0; i < strs.length; i++) {
-                if(!strs[i].isEmpty()){
-                    strs[i] = i +"i" + strs[i];
+        for (String line : lines) {
+            String[] values = line.split(";");
+            for(int i = 0; i < values.length; i++) {
+                if(!values[i].isEmpty())
+                    values[i] = i+"|"+values[i];
+            }
+            Set<String> group = new HashSet<>();
+            boolean newGroup = true;
+            for (String value : values) {
+                if (!value.isEmpty() && columnValueToGroupMap.containsKey(value)) {
+                    group = columnValueToGroupMap.get(value);
+                    newGroup = false;
+                    break;
                 }
             }
-            parsedLines.add(strs);
-        }
-        Map<String,HashSet<Integer>> valueToIndexesMap = new HashMap<String,HashSet<Integer>>();
-        for (int i = 0; i < parsedLines.size(); i++) {
-            for(String str: parsedLines.get(i)){
-                if(!str.isEmpty())
-                    valueToIndexesMap.computeIfAbsent(str, x-> new HashSet<>()).add(i);
+            group.add(line);
+            if (newGroup) {
+                groups.add(group);
+            }
+            for (String value : values) {
+                if (!value.isEmpty()) {
+                    columnValueToGroupMap.put(value, group);
+                }
             }
         }
-
-        for (Set<Integer> indexes : valueToIndexesMap.values()) {
-            List<Integer> indexList = new ArrayList<>(indexes);
-            for (int i = 1; i < indexList.size(); i++) {
-                uf.union(indexList.getFirst(), indexList.get(i));
-            }
-        }
-
-        Map<Integer, Set<String>> indexToGroup = new HashMap<>();
-        for (String line : lines) {
-            int root = uf.find(lineToIndex.get(line));
-            indexToGroup.computeIfAbsent(root, k -> new HashSet<>()).add(line);
-        }
-
-        return indexToGroup.values().stream()
-                .filter(group -> group.size() > 1)
-                .sorted((a, b) -> Integer.compare(b.size(), a.size()))
-                .collect(Collectors.toList());
+        groups.sort((g1, g2) -> Integer.compare(g2.size(), g1.size()));
+        return groups;
     }
     private static void writeGroupsToFile(List<Set<String>> groups) {
         try (PrintWriter writer = new PrintWriter(new FileWriter("output.txt"))) {
-            writer.println("Count of groups with more than one element: " + groups.size());
+            writer.println("Count of groups with more than one element: " + groups.stream().filter(g -> g.size() > 1).count());
             int groupNumber = 1;
             for (Set<String> group : groups) {
-                writer.println("Group " + groupNumber++);
-                for (String line : group) {
-                    writer.println(line);
+                if(group.size() > 1){
+                    writer.println("Group " + groupNumber++);
+                    for (String line : group) {
+                        writer.println(line);
+                    }
+                    writer.println();
                 }
-                writer.println();
             }
         } catch (IOException e) {
             e.printStackTrace();
